@@ -1,0 +1,57 @@
+name: Deploy Email Digest
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 5m
+          envs: REPO_URL
+          script: |
+            set -e
+            mkdir -p /opt/email-digest
+            cd /opt/email-digest
+            if [ ! -d ".git" ]; then
+              git init -b main
+            fi
+            git remote set-url origin "$REPO_URL" 2>/dev/null || git remote add origin "$REPO_URL"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Python venv
+            if [ ! -d ".venv" ]; then
+              python3 -m venv .venv
+            fi
+            .venv/bin/pip install -q openpyxl python-dotenv
+
+            # .env (idempotent — only set if not present)
+            touch .env
+            _env_set() { grep -q "^${1}=" .env || echo "${1}=${2}" >> .env; }
+            _env_set GMAIL_USER "nledovckou@gmail.com"
+            _env_set GMAIL_APP_PASSWORD "${{ secrets.GMAIL_APP_PASSWORD }}"
+            _env_set TELEGRAM_BOT_TOKEN "${{ secrets.EMAIL_DIGEST_BOT_TOKEN }}"
+            _env_set TELEGRAM_CHAT_ID "851350565"
+            _env_set OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
+
+            # Cron: every day at 10:00 Moscow time
+            CRON_LINE="0 10 * * * TZ=Europe/Moscow /opt/email-digest/.venv/bin/python /opt/email-digest/main.py >> /opt/email-digest/cron.log 2>&1"
+            (crontab -l 2>/dev/null | grep -v "email-digest"; echo "$CRON_LINE") | crontab -
+
+            # Test run
+            echo "=== Test run ==="
+            .venv/bin/python main.py 2>&1 | tail -5
+
+            echo "=== DEPLOY COMPLETE ==="
