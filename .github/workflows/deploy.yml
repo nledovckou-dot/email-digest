@@ -46,8 +46,8 @@ jobs:
             _env_set TELEGRAM_CHAT_ID "851350565"
             _env_set OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
 
-            # Cron: every day at 10:00 Moscow time
-            CRON_LINE="0 10 * * * TZ=Europe/Moscow /opt/email-digest/.venv/bin/python /opt/email-digest/main.py >> /opt/email-digest/cron.log 2>&1"
+            # Cron: every day at 07:00 UTC = 10:00 Moscow time
+            CRON_LINE="0 7 * * * cd /opt/email-digest && .venv/bin/python main.py >> /opt/email-digest/cron.log 2>&1"
             (crontab -l 2>/dev/null | grep -v "email-digest"; echo "$CRON_LINE") | crontab -
 
             # Test run
