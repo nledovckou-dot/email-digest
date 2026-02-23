@@ -27,6 +27,21 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+STATE_FILE = os.path.join(os.path.dirname(__file__), "processed_ids.json")
+
+
+def load_processed_ids():
+    try:
+        with open(STATE_FILE, "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+
+def save_processed_ids(ids):
+    with open(STATE_FILE, "w") as f:
+        json.dump(list(ids), f)
+
 
 def decode_header_value(value):
     if not value:
@@ -99,7 +114,8 @@ def short_salon(name):
 # ── Gmail ──────────────────────────────────────────────────────────
 
 def fetch_today_emails():
-    print(f"[Gmail] Connecting as {GMAIL_USER}...")
+    processed = load_processed_ids()
+    print(f"[Gmail] Connecting as {GMAIL_USER}... ({len(processed)} already processed)")
     mail = imaplib.IMAP4_SSL(IMAP_SERVER)
     mail.login(GMAIL_USER, GMAIL_APP_PASSWORD)
     mail.select("inbox")
@@ -112,18 +128,24 @@ def fetch_today_emails():
     if status != "OK" or not messages[0]:
         print("[Gmail] No emails found today")
         mail.logout()
-        return []
+        return [], processed
 
     email_ids = messages[0].split()
     print(f"[Gmail] Found {len(email_ids)} emails today")
 
     results = []
+    new_ids = set()
     for eid in email_ids:
         status, data = mail.fetch(eid, "(RFC822)")
         if status != "OK":
             continue
 
         msg = email.message_from_bytes(data[0][1])
+        msg_id = msg.get("Message-ID", eid.decode())
+        if msg_id in processed:
+            print(f"[Gmail] Skip (already sent): {msg_id}")
+            continue
+
         subject = decode_header_value(msg["Subject"])
         files = []
 
@@ -141,9 +163,10 @@ def fetch_today_emails():
 
         if files:
             results.append((subject, files))
+            new_ids.add(msg_id)
 
     mail.logout()
-    return results
+    return results, processed | new_ids
 
 
 # ── Excel → compact format ─────────────────────────────────────────
@@ -302,9 +325,10 @@ def send_telegram(text):
 def run():
     print(f"[{datetime.now().strftime('%H:%M')}] Email Digest Bot")
 
-    emails = fetch_today_emails()
+    emails, all_ids = fetch_today_emails()
     if not emails:
-        print("No reports today.")
+        print("No new reports.")
+        save_processed_ids(all_ids)
         return
 
     all_parts = [f"📧 Дайджест auto.ru — {datetime.now().strftime('%d.%m.%Y')}\n"]
@@ -326,6 +350,8 @@ def run():
     message = "\n\n".join(all_parts)
 
     success = send_telegram(message)
+    if success:
+        save_processed_ids(all_ids)
     print("✅ Sent" if success else "⚠️ Failed")
 
     # Cleanup
