@@ -39,7 +39,7 @@ jobs:
 
             # .env (idempotent — only set if not present)
             touch .env
-            _env_set() { grep -q "^${1}=" .env || echo "${1}=${2}" >> .env; }
+            _env_set() { sed -i "/^${1}=/d" .env; echo "${1}=${2}" >> .env; }
             _env_set GMAIL_USER "nledovckou@gmail.com"
             _env_set GMAIL_APP_PASSWORD "${{ secrets.GMAIL_APP_PASSWORD }}"
             _env_set TELEGRAM_BOT_TOKEN "${{ secrets.EMAIL_DIGEST_BOT_TOKEN }}"
