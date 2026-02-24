@@ -43,7 +43,7 @@ jobs:
             _env_set GMAIL_USER "nledovckou@gmail.com"
             _env_set GMAIL_APP_PASSWORD "${{ secrets.GMAIL_APP_PASSWORD }}"
             _env_set TELEGRAM_BOT_TOKEN "${{ secrets.EMAIL_DIGEST_BOT_TOKEN }}"
-            _env_set TELEGRAM_CHAT_ID "851350565"
+            _env_set TELEGRAM_CHAT_ID "-5191768983"
             _env_set OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
 
             # Cron: every 6h — 10:00, 16:00, 22:00 Moscow (07, 13, 19 UTC)
