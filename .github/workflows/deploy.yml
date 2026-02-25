@@ -69,10 +69,10 @@ jobs:
 
             cat > /etc/systemd/system/email-digest.timer <<'UNIT'
             [Unit]
-            Description=Run Email Digest every 6h (10:00, 16:00, 22:00 MSK)
+            Description=Run Email Digest every 6h (06:00, 12:00, 18:00 MSK)
 
             [Timer]
-            OnCalendar=*-*-* 07,13,19:00:00 UTC
+            OnCalendar=*-*-* 03,09,15:00:00 UTC
             Persistent=true
 
             [Install]
@@ -84,7 +84,7 @@ jobs:
             systemctl start email-digest.timer
 
             # Also try crontab as backup
-            CRON_LINE="0 7,13,19 * * * cd /opt/email-digest && .venv/bin/python main.py >> /opt/email-digest/cron.log 2>&1"
+            CRON_LINE="0 3,9,15 * * * cd /opt/email-digest && .venv/bin/python main.py >> /opt/email-digest/cron.log 2>&1"
             (crontab -l 2>/dev/null | grep -v "email-digest"; echo "$CRON_LINE") | crontab -
 
             # Verify
