@@ -37,7 +37,7 @@ jobs:
             fi
             .venv/bin/pip install -q openpyxl python-dotenv
 
-            # .env (idempotent — only set if not present)
+            # .env (idempotent — overwrite each deploy)
             touch .env
             _env_set() { sed -i "/^${1}=/d" .env; echo "${1}=${2}" >> .env; }
             _env_set GMAIL_USER "nledovckou@gmail.com"
@@ -46,9 +46,53 @@ jobs:
             _env_set TELEGRAM_CHAT_ID "-5191768983"
             _env_set OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
 
-            # Cron: every 6h — 10:00, 16:00, 22:00 Moscow (07, 13, 19 UTC)
+            # Ensure cron daemon is running
+            echo "=== Cron service status ==="
+            systemctl is-active cron 2>/dev/null || service cron status 2>/dev/null || echo "cron service not found"
+            systemctl start cron 2>/dev/null || service cron start 2>/dev/null || echo "Could not start cron"
+            systemctl enable cron 2>/dev/null || true
+
+            # Systemd timer (reliable alternative to crontab)
+            cat > /etc/systemd/system/email-digest.service <<'UNIT'
+            [Unit]
+            Description=Email Digest Bot
+            After=network-online.target
+            Wants=network-online.target
+
+            [Service]
+            Type=oneshot
+            WorkingDirectory=/opt/email-digest
+            ExecStart=/opt/email-digest/.venv/bin/python main.py
+            StandardOutput=append:/opt/email-digest/run.log
+            StandardError=append:/opt/email-digest/run.log
+            UNIT
+
+            cat > /etc/systemd/system/email-digest.timer <<'UNIT'
+            [Unit]
+            Description=Run Email Digest every 6h (10:00, 16:00, 22:00 MSK)
+
+            [Timer]
+            OnCalendar=*-*-* 07,13,19:00:00 UTC
+            Persistent=true
+
+            [Install]
+            WantedBy=timers.target
+            UNIT
+
+            systemctl daemon-reload
+            systemctl enable email-digest.timer
+            systemctl start email-digest.timer
+
+            # Also try crontab as backup
             CRON_LINE="0 7,13,19 * * * cd /opt/email-digest && .venv/bin/python main.py >> /opt/email-digest/cron.log 2>&1"
             (crontab -l 2>/dev/null | grep -v "email-digest"; echo "$CRON_LINE") | crontab -
+
+            # Verify
+            echo "=== Verify crontab ==="
+            crontab -l 2>&1 || echo "crontab empty"
+
+            echo "=== Verify systemd timer ==="
+            systemctl list-timers email-digest.timer --no-pager 2>&1
 
             # Test run
             echo "=== Test run ==="
