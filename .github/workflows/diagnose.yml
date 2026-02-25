@@ -1,0 +1,50 @@
+name: Diagnose Email Digest
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Diagnose via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 2m
+          script: |
+            echo "=== CRONTAB ==="
+            crontab -l 2>&1
+
+            echo ""
+            echo "=== CRON LOG (last 50 lines) ==="
+            tail -50 /opt/email-digest/cron.log 2>&1 || echo "No cron.log found"
+
+            echo ""
+            echo "=== PROCESSED IDS ==="
+            cat /opt/email-digest/processed_ids.json 2>&1 || echo "No processed_ids.json"
+
+            echo ""
+            echo "=== .env (masked) ==="
+            cd /opt/email-digest
+            grep -c '.' .env 2>/dev/null && echo "(.env has $(wc -l < .env) lines)" || echo "No .env"
+
+            echo ""
+            echo "=== TELEGRAM_CHAT_ID ==="
+            grep TELEGRAM_CHAT_ID .env 2>/dev/null || echo "Not set"
+
+            echo ""
+            echo "=== BOT INFO ==="
+            TOKEN=$(grep TELEGRAM_BOT_TOKEN .env | cut -d= -f2)
+            curl -s "https://api.telegram.org/bot${TOKEN}/getMe" 2>&1
+
+            echo ""
+            echo "=== MANUAL RUN ==="
+            cd /opt/email-digest
+            .venv/bin/python main.py 2>&1
+
+            echo ""
+            echo "=== DONE ==="
