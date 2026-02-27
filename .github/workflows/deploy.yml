@@ -45,6 +45,7 @@ jobs:
             _env_set TELEGRAM_BOT_TOKEN "${{ secrets.EMAIL_DIGEST_BOT_TOKEN }}"
             _env_set TELEGRAM_CHAT_ID "-5191768983"
             _env_set OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
+            _env_set VERTIS_SESSION_ID "${{ secrets.VERTIS_SESSION_ID }}"
 
             # Ensure cron daemon is running
             echo "=== Cron service status ==="
