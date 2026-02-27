@@ -4,6 +4,12 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      reset_state:
+        description: "Reset processed_ids.json (re-send today's digest)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   deploy:
@@ -95,8 +101,14 @@ jobs:
             echo "=== Verify systemd timer ==="
             systemctl list-timers email-digest.timer --no-pager 2>&1
 
+            # Reset state if requested (workflow_dispatch only)
+            if [ "${{ github.event.inputs.reset_state }}" = "true" ]; then
+              echo "=== Resetting state ==="
+              rm -f processed_ids.json
+            fi
+
             # Test run
             echo "=== Test run ==="
-            .venv/bin/python main.py 2>&1 | tail -5
+            .venv/bin/python main.py 2>&1 | tail -20
 
             echo "=== DEPLOY COMPLETE ==="
