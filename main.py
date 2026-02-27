@@ -345,6 +345,7 @@ def _api_request(body, attempt=1):
         headers={
             "Content-Type": "application/json",
             "x-session-id": VERTIS_SESSION_ID,
+            "X-Authorization": VERTIS_SESSION_ID,
         },
         method="POST",
     )
