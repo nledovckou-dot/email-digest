@@ -7,37 +7,36 @@ jobs:
   add-clients:
     runs-on: ubuntu-latest
     steps:
-      - name: Add 3 VLESS clients to Xray config
+      - name: Deep VPN recon
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          command_timeout: 2m
+          command_timeout: 3m
           script: |
-            set -e
+            echo "=== IDENTITY ==="
+            hostname
+            cat /etc/hostname 2>/dev/null || true
+            ip -4 addr show | grep "inet " || true
 
-            echo "=== RECON: find VPN proxy setup ==="
+            echo "=== ALL LISTENING PORTS ==="
+            ss -tlnp
 
-            # Search for existing UUID from user's keys
-            echo "--- grep for known UUID ---"
-            grep -r "2212799b-3210-4962-8e2e-06ef714615cb" /etc/ /opt/ /root/ /usr/local/ /var/lib/ 2>/dev/null || echo "not in common dirs"
+            echo "=== REALITY pubkey search ==="
+            grep -r "Zl6Z9zjzd1SPi3LwSoiquLMF5m3AxpsHsqqqegE" / --include="*.json" --include="*.yml" --include="*.yaml" --include="*.toml" --include="*.conf" 2>/dev/null | head -10 || echo "not found"
 
-            # Docker containers
-            echo "--- docker containers ---"
-            docker ps -a 2>/dev/null || echo "no docker"
+            echo "=== ALL non-kernel processes ==="
+            ps aux | grep -v "\\[" | grep -v "grep"
 
-            # All listening on port 443
-            echo "--- port 443 ---"
-            ss -tlnp | grep 443 || true
+            echo "=== systemctl ALL services ==="
+            systemctl list-units --type=service --state=running 2>/dev/null
 
-            # All systemd services with proxy-related names
-            echo "--- systemd proxy services ---"
-            systemctl list-units --type=service --all 2>/dev/null | grep -iE "xray|v2ray|sing|3x|x-ui|marzban|vless|proxy|vpn|reality" || echo "none found"
+            echo "=== /usr/local/bin contents ==="
+            ls -la /usr/local/bin/ 2>/dev/null || true
 
-            # Process list
-            echo "--- all processes ---"
-            ps aux | grep -viE "grep|python|node|nginx|systemd|sshd|cron|docker|uvicorn" || true
+            echo "=== /root contents ==="
+            ls -la /root/ 2>/dev/null || true
 
-            echo "=== RECON DONE ==="
+            echo "=== DONE ==="
