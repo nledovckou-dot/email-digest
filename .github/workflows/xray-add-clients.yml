@@ -18,10 +18,21 @@ jobs:
           script: |
             set -e
 
-            # Find Xray config
-            CONFIG=$(find /usr/local/etc/xray /etc/xray /opt/xray -name "config.json" 2>/dev/null | head -1)
+            # Find Xray config (search everywhere)
+            echo "=== Searching for Xray config ==="
+            find / -name "config.json" -path "*xray*" 2>/dev/null || true
+            find / -name "config.json" -path "*x-ray*" 2>/dev/null || true
+            find / -name "*.json" -path "*xray*" 2>/dev/null || true
+            echo "=== Xray binary ==="
+            which xray 2>/dev/null || find / -name "xray" -type f 2>/dev/null || true
+            echo "=== Xray service ==="
+            systemctl cat xray 2>/dev/null || true
+            echo "=== Xray process ==="
+            ps aux | grep -i xray | grep -v grep || true
+
+            CONFIG=$(find / -name "config.json" -path "*xray*" 2>/dev/null | head -1)
             if [ -z "$CONFIG" ]; then
-              echo "ERROR: Xray config.json not found"
+              echo "ERROR: Xray config.json not found anywhere"
               exit 1
             fi
             echo "Found config: $CONFIG"
