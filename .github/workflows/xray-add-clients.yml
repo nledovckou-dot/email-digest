@@ -1,0 +1,68 @@
+name: Xray — Add VLESS Clients
+
+on:
+  workflow_dispatch:
+
+jobs:
+  add-clients:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add 3 VLESS clients to Xray config
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 2m
+          script: |
+            set -e
+
+            # Find Xray config
+            CONFIG=$(find /usr/local/etc/xray /etc/xray /opt/xray -name "config.json" 2>/dev/null | head -1)
+            if [ -z "$CONFIG" ]; then
+              echo "ERROR: Xray config.json not found"
+              exit 1
+            fi
+            echo "Found config: $CONFIG"
+
+            # Backup
+            cp "$CONFIG" "${CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
+            echo "Backup created"
+
+            # Check if jq is installed
+            if ! command -v jq &>/dev/null; then
+              apt-get update -qq && apt-get install -y -qq jq
+            fi
+
+            # Show current clients
+            echo "=== Current clients ==="
+            jq '.inbounds[0].settings.clients | length' "$CONFIG"
+
+            # Add 3 new clients
+            jq '.inbounds[0].settings.clients += [
+              {"id": "9ecd0b19-f2c1-42b3-a834-28417c260577", "flow": "xtls-rprx-vision"},
+              {"id": "0b2feefa-a45c-4c7e-8e30-8680347a3c00", "flow": "xtls-rprx-vision"},
+              {"id": "77a34956-619b-4157-a462-c564998691da", "flow": "xtls-rprx-vision"}
+            ]' "$CONFIG" > /tmp/xray-config-new.json
+
+            # Validate JSON
+            jq empty /tmp/xray-config-new.json
+            echo "JSON valid"
+
+            # Replace config
+            mv /tmp/xray-config-new.json "$CONFIG"
+
+            # Show updated clients
+            echo "=== Updated clients ==="
+            jq '.inbounds[0].settings.clients | length' "$CONFIG"
+            jq '.inbounds[0].settings.clients[].id' "$CONFIG"
+
+            # Restart Xray
+            systemctl restart xray 2>/dev/null || service xray restart 2>/dev/null
+            sleep 2
+
+            # Verify running
+            echo "=== Xray status ==="
+            systemctl is-active xray 2>/dev/null || service xray status 2>/dev/null
+            echo "=== DONE ==="
