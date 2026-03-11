@@ -18,62 +18,26 @@ jobs:
           script: |
             set -e
 
-            # Find Xray config (search everywhere)
-            echo "=== Searching for Xray config ==="
-            find / -name "config.json" -path "*xray*" 2>/dev/null || true
-            find / -name "config.json" -path "*x-ray*" 2>/dev/null || true
-            find / -name "*.json" -path "*xray*" 2>/dev/null || true
-            echo "=== Xray binary ==="
-            which xray 2>/dev/null || find / -name "xray" -type f 2>/dev/null || true
-            echo "=== Xray service ==="
-            systemctl cat xray 2>/dev/null || true
-            echo "=== Xray process ==="
-            ps aux | grep -i xray | grep -v grep || true
+            echo "=== RECON: find VPN proxy setup ==="
 
-            CONFIG=$(find / -name "config.json" -path "*xray*" 2>/dev/null | head -1)
-            if [ -z "$CONFIG" ]; then
-              echo "ERROR: Xray config.json not found anywhere"
-              exit 1
-            fi
-            echo "Found config: $CONFIG"
+            # Search for existing UUID from user's keys
+            echo "--- grep for known UUID ---"
+            grep -r "2212799b-3210-4962-8e2e-06ef714615cb" /etc/ /opt/ /root/ /usr/local/ /var/lib/ 2>/dev/null || echo "not in common dirs"
 
-            # Backup
-            cp "$CONFIG" "${CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
-            echo "Backup created"
+            # Docker containers
+            echo "--- docker containers ---"
+            docker ps -a 2>/dev/null || echo "no docker"
 
-            # Check if jq is installed
-            if ! command -v jq &>/dev/null; then
-              apt-get update -qq && apt-get install -y -qq jq
-            fi
+            # All listening on port 443
+            echo "--- port 443 ---"
+            ss -tlnp | grep 443 || true
 
-            # Show current clients
-            echo "=== Current clients ==="
-            jq '.inbounds[0].settings.clients | length' "$CONFIG"
+            # All systemd services with proxy-related names
+            echo "--- systemd proxy services ---"
+            systemctl list-units --type=service --all 2>/dev/null | grep -iE "xray|v2ray|sing|3x|x-ui|marzban|vless|proxy|vpn|reality" || echo "none found"
 
-            # Add 3 new clients
-            jq '.inbounds[0].settings.clients += [
-              {"id": "9ecd0b19-f2c1-42b3-a834-28417c260577", "flow": "xtls-rprx-vision"},
-              {"id": "0b2feefa-a45c-4c7e-8e30-8680347a3c00", "flow": "xtls-rprx-vision"},
-              {"id": "77a34956-619b-4157-a462-c564998691da", "flow": "xtls-rprx-vision"}
-            ]' "$CONFIG" > /tmp/xray-config-new.json
+            # Process list
+            echo "--- all processes ---"
+            ps aux | grep -viE "grep|python|node|nginx|systemd|sshd|cron|docker|uvicorn" || true
 
-            # Validate JSON
-            jq empty /tmp/xray-config-new.json
-            echo "JSON valid"
-
-            # Replace config
-            mv /tmp/xray-config-new.json "$CONFIG"
-
-            # Show updated clients
-            echo "=== Updated clients ==="
-            jq '.inbounds[0].settings.clients | length' "$CONFIG"
-            jq '.inbounds[0].settings.clients[].id' "$CONFIG"
-
-            # Restart Xray
-            systemctl restart xray 2>/dev/null || service xray restart 2>/dev/null
-            sleep 2
-
-            # Verify running
-            echo "=== Xray status ==="
-            systemctl is-active xray 2>/dev/null || service xray status 2>/dev/null
-            echo "=== DONE ==="
+            echo "=== RECON DONE ==="
